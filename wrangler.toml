@@ -1,0 +1,40 @@
+name = "worker-comment"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "comments-db"
+database_id = "969f0a00-9512-42f3-bc5c-9fe2eaf24e7e" 
+preview_database_id = "DB"
+
+# KV Namespace Binding
+[[kv_namespaces]]
+binding = "AVATAR_KV"
+id = "23569327774b41d0a37e367bac04fdef"
+preview_id = "AVATAR_KV"
+
+# Smart Placement
+[placement]
+mode = "smart"
+
+# Cron Triggers (Cleanup)
+[triggers]
+crons = ["0 0 * * *"] # Run once a day at midnight
+
+# Cloudflare Email Routing (we'll use the send_email binding if available or assume MailChannels fallback, 
+# but per prompt "Use Cloudflare Email Routing", we'll add the send_email binding)
+# Note: 'send_email' binding requires specific setup in dashboard.
+[[send_email]]
+name = "SEB"
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[[routes]]
+pattern = "serverless-comment-backend.arasaka.ltd"
+custom_domain = true
