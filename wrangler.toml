@@ -38,3 +38,5 @@ invocation_logs = true
 [[routes]]
 pattern = "serverless-comment-backend.arasaka.ltd"
 custom_domain = true
+
+[vars]

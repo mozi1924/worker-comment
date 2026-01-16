@@ -44,7 +44,7 @@ const CommentForm: React.FC<CommentFormProps> = ({ siteId, workerUrl, parentId, 
         setError(null);
 
         try {
-            const context_url = window.location.href; // Capture current URL
+            const context_url = window.location.origin + window.location.pathname; // Clean URL (no query/hash)
 
             const res = await fetch(`${workerUrl}/api/comments`, {
                 method: 'POST',
@@ -383,7 +383,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ siteId, workerUrl, turnst
     const fetchComments = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${workerUrl}/api/comments?site_id=${siteId}`);
+            const context_url = encodeURIComponent(window.location.origin + window.location.pathname);
+            const res = await fetch(`${workerUrl}/api/comments?site_id=${siteId}&context_url=${context_url}`);
             if (res.ok) {
                 const data = (await res.json()) as { comments: Comment[], total: number };
                 setComments(data.comments || []);

@@ -1,29 +1,6 @@
-export interface Env {
-    DB: D1Database;
-    AVATAR_KV: KVNamespace;
-    SEB: any; // Cloudflare Email Binding
-    TURNSTILE_SECRET?: string;
-    SENDER_EMAIL: string;
-    ADMIN_EMAIL: string;
-    ADMIN_SECRET?: string; // Added for simple auth
-    [key: string]: any;
-}
+import { Comment } from './types';
 
-export interface Comment {
-    id?: number;
-    site_id: string;
-    parent_id: number | null;
-    content: string;
-    author_name: string;
-    email?: string; // Raw email
-    email_md5: string;
-    avatar_id: string;
-    ip_address: string;
-    user_agent: string;
-    context_url?: string;
-    created_at: number;
-}
-
+// Insert Comment
 export async function insertComment(db: D1Database, comment: Comment) {
     return await db.prepare(
         `INSERT INTO comments (site_id, parent_id, content, author_name, email, email_md5, avatar_id, ip_address, user_agent, context_url, created_at) 
@@ -43,20 +20,28 @@ export async function insertComment(db: D1Database, comment: Comment) {
     ).run();
 }
 
-// New optimized fetch for Root Comments
-export async function getRootComments(db: D1Database, siteId: string, page: number = 1, pageSize: number = 10) {
+// Fetch Root Comments
+export async function getRootComments(db: D1Database, siteId: string, page: number = 1, pageSize: number = 10, contextUrl?: string) {
     const offset = (page - 1) * pageSize;
-    // 1. Fetch Root Comments
-    const { results } = await db.prepare(
-        `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin
+    
+    let query = `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin
      FROM comments 
-     WHERE site_id = ? AND parent_id IS NULL
-     ORDER BY created_at DESC 
-     LIMIT ? OFFSET ?`
-    ).bind(siteId, pageSize, offset).all<Comment & { is_admin: number }>();
+     WHERE site_id = ? AND parent_id IS NULL`;
+    
+    const params: any[] = [siteId];
+
+    if (contextUrl) {
+        query += ` AND context_url = ?`;
+        params.push(contextUrl);
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    params.push(pageSize, offset);
+
+    // 1. Fetch Root Comments
+    const { results } = await db.prepare(query).bind(...params).all<Comment & { is_admin: number }>();
 
     // 2. Fetch Metadata (Reply Count & Admin Reply) for each root comment
-    // We use Promise.all to parallelize these sub-queries. D1 handles this well.
     const commentsWithMeta = await Promise.all(results.map(async (c) => {
         // Count all replies
         const countRes = await db.prepare(
@@ -80,9 +65,15 @@ export async function getRootComments(db: D1Database, siteId: string, page: numb
     }));
 
     // 3. Get Total Root Count for pagination
-    const countResult = await db.prepare(
-        `SELECT COUNT(*) as count FROM comments WHERE site_id = ? AND parent_id IS NULL`
-    ).bind(siteId).first<{ count: number }>();
+    let countQuery = `SELECT COUNT(*) as count FROM comments WHERE site_id = ? AND parent_id IS NULL`;
+    const countParams: any[] = [siteId];
+
+    if (contextUrl) {
+        countQuery += ` AND context_url = ?`;
+        countParams.push(contextUrl);
+    }
+
+    const countResult = await db.prepare(countQuery).bind(...countParams).first<{ count: number }>();
 
     return {
         comments: commentsWithMeta,
@@ -92,7 +83,7 @@ export async function getRootComments(db: D1Database, siteId: string, page: numb
     };
 }
 
-// Lazy load replies with cursor pagination (limit + 1 to check for next page)
+// Lazy load replies with cursor pagination
 export async function getReplies(db: D1Database, parentId: number, lastId?: number, limit: number = 10) {
     let query = `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin
                FROM comments 
@@ -105,7 +96,7 @@ export async function getReplies(db: D1Database, parentId: number, lastId?: numb
     }
 
     query += ` ORDER BY id DESC LIMIT ?`;
-    params.push(limit + 1); // Fetch one extra to determine if there are more
+    params.push(limit + 1); 
 
     const { results } = await db.prepare(query).bind(...params).all<Comment>();
     
