@@ -33,17 +33,38 @@ export const getAdminComments = async (c: Context<{ Bindings: Env }>) => {
 export const batchDeleteComments = async (c: Context<{ Bindings: Env }>) => {
     const body = await c.req.json<{ ids?: number[], email?: string }>();
 
+    let siteIds: string[] = [];
+
     if (body.email) {
         const emailMd5 = await md5(body.email.trim().toLowerCase());
+        // Get sites to invalidate
+        const sites = await c.env.DB.prepare('SELECT DISTINCT site_id FROM comments WHERE email_md5 = ?').bind(emailMd5).all<{ site_id: string }>();
+        siteIds = sites.results.map(s => s.site_id);
+
         await c.env.DB.prepare('DELETE FROM comments WHERE email_md5 = ?').bind(emailMd5).run();
+        
+        // Invalidate
+        const nowStr = new Date().toUTCString();
+        c.executionCtx.waitUntil(Promise.all(siteIds.map(sid => c.env.AVATAR_KV.put(`cache:site:${sid}`, nowStr))));
+
         return jsonResponse({ success: true, message: `Deleted comments for ${body.email}` });
     }
 
     if (body.ids && Array.isArray(body.ids) && body.ids.length > 0) {
         const placeholders = body.ids.map(() => '?').join(',');
+        
+        // Get sites to invalidate
+        const sites = await c.env.DB.prepare(`SELECT DISTINCT site_id FROM comments WHERE id IN (${placeholders})`).bind(...body.ids).all<{ site_id: string }>();
+        siteIds = sites.results.map(s => s.site_id);
+
         await c.env.DB.prepare(`DELETE FROM comments WHERE id IN (${placeholders})`)
             .bind(...body.ids)
             .run();
+
+        // Invalidate
+        const nowStr = new Date().toUTCString();
+        c.executionCtx.waitUntil(Promise.all(siteIds.map(sid => c.env.AVATAR_KV.put(`cache:site:${sid}`, nowStr))));
+
         return jsonResponse({ success: true, message: `Deleted ${body.ids.length} comments` });
     }
 
@@ -52,6 +73,16 @@ export const batchDeleteComments = async (c: Context<{ Bindings: Env }>) => {
 
 export const deleteComment = async (c: Context<{ Bindings: Env }>) => {
     const id = c.req.param('id');
+    
+    // Get site_id to invalidate
+    const comment = await c.env.DB.prepare('SELECT site_id FROM comments WHERE id = ?').bind(id).first<{ site_id: string }>();
+    
     await c.env.DB.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
+    
+    if (comment && comment.site_id) {
+        const nowStr = new Date().toUTCString();
+        c.executionCtx.waitUntil(c.env.AVATAR_KV.put(`cache:site:${comment.site_id}`, nowStr));
+    }
+    
     return jsonResponse({ success: true });
 };

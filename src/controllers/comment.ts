@@ -13,17 +13,37 @@ export const getComments = async (c: Context<{ Bindings: Env }>) => {
 
     if (!siteId) return errorResponse('Missing site_id');
 
-    const contextUrl = c.req.query('context_url');
-    // If context_url is missing, it might be better to return empty dictionary or handle logic, 
-    // but for now we follow the plan to filter by it if present or mandatory.
-    // The user requirement is strong about separating pages.
+    // Smart Caching: Check Last-Modified
+    const cacheKey = `cache:site:${siteId}`;
+    let lastUpdated = await c.env.AVATAR_KV.get(cacheKey);
+
+    // If never set before, default to "now" so we set it for future
+    if (!lastUpdated) {
+        lastUpdated = new Date().toUTCString();
+        // WaitUntil not critical here, but good practice to seed if missing? 
+        // Actually if missing, we just fetch DB. We'll set it on next POST.
+        // For now, let's treat "missing" as "fresh content available".
+    }
+
+    const ifModifiedSince = c.req.header('If-Modified-Since');
     
-    // We will make contextUrl optional in the DB function to support existing calls if any (though we only have one),
-    // but effectively we want to use it.
+    // Only use cache if we found a timestamp AND it matches
+    if (lastUpdated && ifModifiedSince === lastUpdated) {
+        return new Response(null, {
+            status: 304,
+            headers: {
+                'Cache-Control': 'public, no-cache', // Must revalidate
+                'Last-Modified': lastUpdated
+            }
+        });
+    }
+
+    const contextUrl = c.req.query('context_url');
     const data = await getRootComments(c.env.DB, siteId, page, pageSize, contextUrl);
-    // Cache for 60 seconds (1 minute) to reduce database hits for popular pages
+
     return jsonResponse(data, 200, {
-        'Cache-Control': 'public, max-age=60'
+        'Cache-Control': 'public, no-cache',
+        'Last-Modified': lastUpdated || new Date().toUTCString() // Fallback if KV empty
     });
 };
 
@@ -188,6 +208,10 @@ export const postComment = async (c: Context<{ Bindings: Env }>) => {
                 console.error('[Email] Critical failure in email background task:', e);
             }
         }());
+
+        // 6. Update Smart Cache Timestamp
+        const nowStr = new Date().toUTCString();
+        c.executionCtx.waitUntil(c.env.AVATAR_KV.put(`cache:site:${site_id}`, nowStr));
 
         return jsonResponse({ success: true, avatar_id: avatarId, id: newId });
     } catch (e: any) {
