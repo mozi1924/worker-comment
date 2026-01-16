@@ -160,25 +160,30 @@ app.post('/api/comments', async (c) => {
                     return;
                 }
 
-                // --- 1. Determine Sender ---
-                let sender = 'noreply@yourdomain.com';
-                try {
-                    sender = env.SENDER_EMAIL;
-                    if (env.SENDER_EMAIL.startsWith('{')) {
-                        const senders = JSON.parse(env.SENDER_EMAIL);
-                        sender = senders[site_id] || senders['default'] || Object.values(senders)[0] as string;
+                // --- Helper: Get Site Specific Config ---
+                const getSiteConfig = (configStr: string, siteId: string, defaultVal: string): string => {
+                    if (!configStr) return defaultVal;
+                    try {
+                         // Check if it looks like JSON (starts with {)
+                        if (configStr.trim().startsWith('{')) {
+                            const config = JSON.parse(configStr);
+                            return config[siteId] || config['default'] || Object.values(config)[0] as string || defaultVal;
+                        }
+                        return configStr;
+                    } catch (e) {
+                        return configStr; // Fallback to raw string if parse fails
                     }
-                } catch (e) {
-                    sender = env.SENDER_EMAIL || sender;
-                }
+                };
+
+                // --- 1. Determine Sender ---
+                const sender = getSiteConfig(env.SENDER_EMAIL, site_id, 'noreply@yourdomain.com');
 
                 // --- 2. Determine Recipients (Smart Routing) ---
-                // Default: Notify Admin (New Thread)
-                // If Reply: Notify Parent Author (Thread Reply) AND potentially Admin (optional, but requested behavior implies "User creates new -> Admin", "User replies -> Parent")
-
                 const recipients: { email: string, name: string, type: 'Admin' | 'User' }[] = [];
-                const adminEmailStr = env.ADMIN_EMAIL || 'admin@yourdomain.com';
-                const admins = adminEmailStr.split(',').map(r => r.trim()).filter(r => r.length > 0);
+                
+                // Parse Admin Emails (supports JSON map or comma-separated string)
+                const adminConfig = getSiteConfig(env.ADMIN_EMAIL, site_id, 'admin@yourdomain.com');
+                const admins = adminConfig.split(',').map(r => r.trim()).filter(r => r.length > 0);
 
                 if (parent_id) {
                     // It's a reply! Try to find the parent author.
