@@ -20,3 +20,5 @@ CREATE TABLE IF NOT EXISTS comments (
 
 CREATE INDEX IF NOT EXISTS idx_site_time ON comments (site_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_email_md5 ON comments (email_md5);
+CREATE INDEX IF NOT EXISTS idx_parent_admin ON comments (parent_id, is_admin);
+CREATE INDEX IF NOT EXISTS idx_parent_id ON comments (parent_id, id);

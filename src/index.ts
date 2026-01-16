@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { Env, insertComment, getComments, getCommentAuthor } from './db';
+import { Env, insertComment, getRootComments, getReplies, getCommentAuthor } from './db';
 import { md5, jsonResponse, errorResponse } from './utils';
 import { createMimeMessage } from 'mimetext';
 import { EmailMessage } from "cloudflare:email";
@@ -59,7 +59,7 @@ app.use('/api/admin/*', async (c, next) => {
     return errorResponse('Unauthorized', 401);
 });
 
-// GET Comments
+// GET Comments (Root Only)
 app.get('/api/comments', async (c) => {
     const siteId = c.req.query('site_id');
     const page = parseInt(c.req.query('page') || '1');
@@ -67,7 +67,19 @@ app.get('/api/comments', async (c) => {
 
     if (!siteId) return errorResponse('Missing site_id');
 
-    const data = await getComments(c.env.DB, siteId, page, pageSize);
+    const data = await getRootComments(c.env.DB, siteId, page, pageSize);
+    return jsonResponse(data);
+});
+
+// GET Replies (Lazy Load)
+app.get('/api/comments/:id/replies', async (c) => {
+    const parentId = parseInt(c.req.param('id'));
+    const lastId = c.req.query('last_id') ? parseInt(c.req.query('last_id')!) : undefined;
+    const limit = parseInt(c.req.query('limit') || '10');
+
+    if (isNaN(parentId)) return errorResponse('Invalid comment ID');
+
+    const data = await getReplies(c.env.DB, parentId, lastId, limit);
     return jsonResponse(data);
 });
 

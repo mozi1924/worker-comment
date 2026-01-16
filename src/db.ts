@@ -43,26 +43,79 @@ export async function insertComment(db: D1Database, comment: Comment) {
     ).run();
 }
 
-export async function getComments(db: D1Database, siteId: string, page: number = 1, pageSize: number = 10) {
+// New optimized fetch for Root Comments
+export async function getRootComments(db: D1Database, siteId: string, page: number = 1, pageSize: number = 10) {
     const offset = (page - 1) * pageSize;
-    // NOTE: We deliberately do NOT select 'email' here to prevent leaking it to the frontend
-    const results = await db.prepare(
-        `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at 
+    // 1. Fetch Root Comments
+    const { results } = await db.prepare(
+        `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin
      FROM comments 
-     WHERE site_id = ? 
+     WHERE site_id = ? AND parent_id IS NULL
      ORDER BY created_at DESC 
      LIMIT ? OFFSET ?`
-    ).bind(siteId, pageSize, offset).all();
+    ).bind(siteId, pageSize, offset).all<Comment & { is_admin: number }>();
 
+    // 2. Fetch Metadata (Reply Count & Admin Reply) for each root comment
+    // We use Promise.all to parallelize these sub-queries. D1 handles this well.
+    const commentsWithMeta = await Promise.all(results.map(async (c) => {
+        // Count all replies
+        const countRes = await db.prepare(
+            `SELECT COUNT(*) as count FROM comments WHERE parent_id = ?`
+        ).bind(c.id).first<{ count: number }>();
+
+        // Get one admin reply if exists
+        const adminReply = await db.prepare(
+            `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin
+       FROM comments 
+       WHERE parent_id = ? AND is_admin = 1 
+       ORDER BY created_at ASC 
+       LIMIT 1`
+        ).bind(c.id).first<Comment>();
+
+        return {
+            ...c,
+            reply_count: countRes?.count || 0,
+            admin_reply: adminReply || null
+        };
+    }));
+
+    // 3. Get Total Root Count for pagination
     const countResult = await db.prepare(
-        `SELECT COUNT(*) as count FROM comments WHERE site_id = ?`
-    ).bind(siteId).first();
+        `SELECT COUNT(*) as count FROM comments WHERE site_id = ? AND parent_id IS NULL`
+    ).bind(siteId).first<{ count: number }>();
 
     return {
-        comments: results.results,
+        comments: commentsWithMeta,
         total: countResult?.count || 0,
         page,
         pageSize
+    };
+}
+
+// Lazy load replies with cursor pagination (limit + 1 to check for next page)
+export async function getReplies(db: D1Database, parentId: number, lastId?: number, limit: number = 10) {
+    let query = `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin
+               FROM comments 
+               WHERE parent_id = ?`;
+    const params: any[] = [parentId];
+
+    if (lastId) {
+        query += ` AND id < ?`;
+        params.push(lastId);
+    }
+
+    query += ` ORDER BY id DESC LIMIT ?`;
+    params.push(limit + 1); // Fetch one extra to determine if there are more
+
+    const { results } = await db.prepare(query).bind(...params).all<Comment>();
+    
+    const hasMore = results.length > limit;
+    const replies = hasMore ? results.slice(0, limit) : results;
+
+    return {
+        replies,
+        hasMore,
+        lastId: replies.length > 0 ? replies[replies.length - 1].id : null
     };
 }
 
