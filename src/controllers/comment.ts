@@ -1,6 +1,6 @@
 import { Context } from 'hono';
 import { Env, Comment } from '../types';
-import { errorResponse, jsonResponse, md5 } from '../utils';
+import { errorResponse, jsonResponse, md5, getSiteConfig } from '../utils';
 import { validateTurnstile } from '../lib/turnstile';
 import { processAvatar, getAvatar } from '../lib/avatar';
 import { sendEmail } from '../lib/email';
@@ -119,21 +119,9 @@ export const postComment = async (c: Context<{ Bindings: Env }>) => {
 
                 const recipients: { email: string, name: string, type: 'Admin' | 'User' }[] = [];
                 
-                // Parse Admin Emails
-                const getSiteConfig = (configStr: string, siteId: string, defaultVal: string): string => {
-                    if (!configStr) return defaultVal;
-                    try {
-                        if (configStr.trim().startsWith('{')) {
-                            const config = JSON.parse(configStr);
-                            return config[siteId] || config['default'] || Object.values(config)[0] as string || defaultVal;
-                        }
-                        return configStr;
-                    } catch (e) {
-                        return configStr; 
-                    }
-                };
+                // Parse Admin Emails (using shared utility)
                 const adminConfig = getSiteConfig(env.ADMIN_EMAIL, site_id, 'admin@yourdomain.com');
-                const admins = adminConfig.split(',').map(r => r.trim()).filter(r => r.length > 0);
+                const admins = adminConfig.split(',').map((r: string) => r.trim()).filter((r: string) => r.length > 0);
 
                 if (parent_id) {
                     const parentAuthor = await getCommentAuthor(c.env.DB, parent_id);
@@ -141,13 +129,13 @@ export const postComment = async (c: Context<{ Bindings: Env }>) => {
                         recipients.push({ email: parentAuthor.email, name: parentAuthor.author_name, type: 'User' });
                     }
                     
-                    admins.forEach(a => {
+                    admins.forEach((a: string) => {
                         if (!recipients.find(r => r.email === a)) {
                             recipients.push({ email: a, name: 'Admin', type: 'Admin' });
                         }
                     });
                 } else {
-                    admins.forEach(a => recipients.push({ email: a, name: 'Admin', type: 'Admin' }));
+                    admins.forEach((a: string) => recipients.push({ email: a, name: 'Admin', type: 'Admin' }));
                 }
 
                 if (recipients.length === 0) return;

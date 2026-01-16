@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+[vars]
+ALLOW_SITES = "mozi1924.com,jaxlocke.uk,arasaka.ltd,comment-admin.arasaka.ltd"
+SENDER_EMAIL = {"mozi1924.com" = "noreply@mozi1924.com","default" = "noreply@tlilng.top"}
+
 # D1 Database Binding
 [[d1_databases]]
 binding = "DB"
@@ -38,5 +42,3 @@ invocation_logs = true
 [[routes]]
 pattern = "serverless-comment-backend.arasaka.ltd"
 custom_domain = true
-
-[vars]

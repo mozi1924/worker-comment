@@ -1,6 +1,7 @@
 import { createMimeMessage } from 'mimetext';
 import { EmailMessage } from "cloudflare:email";
 import { Env } from '../types';
+import { getSiteConfig } from '../utils';
 
 export async function sendEmail(
     env: Env, 
@@ -12,19 +13,6 @@ export async function sendEmail(
     siteId?: string,
     extraHeaders: Record<string, string> = {}
 ) {
-    const getSiteConfig = (configStr: string, siteId: string | undefined, defaultVal: string): string => {
-        if (!configStr) return defaultVal;
-        try {
-            if (configStr.trim().startsWith('{')) {
-                const config = JSON.parse(configStr);
-                return (siteId && config[siteId]) || config['default'] || Object.values(config)[0] as string || defaultVal;
-            }
-            return configStr;
-        } catch (e) {
-            return configStr; 
-        }
-    };
-
     const sender = getSiteConfig(env.SENDER_EMAIL, siteId, 'noreply@yourdomain.com');
 
     try {

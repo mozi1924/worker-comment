@@ -30,7 +30,12 @@ app.use('*', async (c, next) => {
             if (!allowSites || allowSites === '*') return origin;
 
             const sites = allowSites.split(',').map((s: string) => s.trim());
-            if (sites.includes(origin)) {
+            // Normalize origin to remove protocol (http:// or https://) for comparison
+            // This allows the env var to just list domains like "example.com"
+            const originDomain = origin.replace(/^https?:\/\//, '');
+
+            // Check if strict match with protocol OR match with domain only
+            if (sites.includes(origin) || sites.includes(originDomain)) {
                 return origin;
             }
             return null; // Block
