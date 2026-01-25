@@ -272,18 +272,22 @@ const RepliesModal: React.FC<{
     workerUrl: string;
     siteId: string;
     turnstileSiteKey: string;
-}> = ({ parentId, onClose, workerUrl, siteId, turnstileSiteKey }) => {
+    highlightId?: number;
+}> = ({ parentId, onClose, workerUrl, siteId, turnstileSiteKey, highlightId }) => {
     const [replies, setReplies] = useState<Comment[]>([]);
     const [loading, setLoading] = useState(false);
     const [lastId, setLastId] = useState<number | undefined>(undefined);
     const [hasMore, setHasMore] = useState(true);
+    const [scrolled, setScrolled] = useState(false);
 
     const loadReplies = async (reset = false) => {
         if (!parentId) return;
         setLoading(true);
         try {
             const currentLastId = reset ? undefined : lastId;
-            const url = `${workerUrl}/api/comments/${parentId}/replies?limit=10${currentLastId ? `&last_id=${currentLastId}` : ''}`;
+            const hParam = (reset && highlightId) ? `&highlight_id=${highlightId}` : '';
+            const url = `${workerUrl}/api/comments/${parentId}/replies?limit=10${currentLastId ? `&last_id=${currentLastId}` : ''}${hParam}`;
+            
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
@@ -303,8 +307,27 @@ const RepliesModal: React.FC<{
     };
 
     useEffect(() => {
+        setScrolled(false);
         if (parentId) loadReplies(true);
     }, [parentId]);
+
+    // Scroll to highlight
+    useEffect(() => {
+        if (highlightId && !scrolled && replies.length > 0) {
+            // Check if target is in replies
+            const target = replies.find(r => r.id === highlightId);
+            if (target) {
+                setTimeout(() => {
+                    const el = document.getElementById(`comment-${highlightId}`);
+                    if (el) {
+                         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                         el.classList.add('highlight-comment');
+                    }
+                }, 100);
+                setScrolled(true);
+            }
+        }
+    }, [replies, highlightId, scrolled]);
 
     if (!parentId) return null;
 
@@ -378,6 +401,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ siteId, workerUrl, turnst
     const [loading, setLoading] = useState(false);
     const [initialLoadDone, setInitialLoadDone] = useState(false);
     const [activeParentId, setActiveParentId] = useState<number | null>(null);
+    const [highlightId, setHighlightId] = useState<number | undefined>(undefined);
 
     // Fetch Comments
     const fetchComments = async () => {
@@ -403,19 +427,43 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ siteId, workerUrl, turnst
 
     // Handle Deep Linking
     useEffect(() => {
-        if (initialLoadDone && comments.length > 0 && window.location.hash) {
+        if (initialLoadDone && window.location.hash) {
             const hash = window.location.hash;
             if (hash.startsWith('#comment-')) {
-                const el = document.getElementById(hash.substring(1));
+                const idString = hash.substring(9);
+                const id = parseInt(idString);
+                if (isNaN(id)) return;
+
+                // Check if it's already in the DOM (Root list)
+                const el = document.getElementById(`comment-${id}`);
                 if (el) {
                     setTimeout(() => {
                         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         el.classList.add('highlight-comment'); 
                     }, 100);
+                } else {
+                    // Not found, try fetching context
+                    fetch(`${workerUrl}/api/comments/${id}`)
+                        .then(res => res.json())
+                        .then((data: { comment: Comment, root_comment: Comment }) => {
+                            if (data && data.root_comment) {
+                                // If it's a reply, open modal
+                                if (data.comment.parent_id && data.root_comment.id !== data.comment.id) {
+                                    setHighlightId(data.comment.id);
+                                    setActiveParentId(data.root_comment.id);
+                                } else {
+                                    // It's a root comment, we might want to ensure it's in the list.
+                                    // For now, if we can't find it in root list, maybe just add it?
+                                    // Simple approach: Prepend to comments if not present?
+                                    // But strictly following "Open Reply Modal" logic for replies.
+                                }
+                            }
+                        })
+                        .catch(e => console.error('Failed to resolve deep link', e));
                 }
             }
         }
-    }, [initialLoadDone, comments]);
+    }, [initialLoadDone, comments, workerUrl]);
 
     return (
         <div className="max-w-4xl mx-auto p-6 font-sans text-slate-800">
@@ -460,10 +508,11 @@ const CommentSystem: React.FC<CommentSystemProps> = ({ siteId, workerUrl, turnst
             {activeParentId && (
                 <RepliesModal 
                     parentId={activeParentId}
-                    onClose={() => setActiveParentId(null)}
+                    onClose={() => { setActiveParentId(null); setHighlightId(undefined); }}
                     workerUrl={workerUrl}
                     siteId={siteId}
                     turnstileSiteKey={turnstileSiteKey}
+                    highlightId={highlightId}
                 />
             )}
 

@@ -5,7 +5,7 @@ import { corsHeaders } from './utils';
 
 // Controllers
 import { sendCode, verifyCode } from './controllers/auth';
-import { getComments, getRepliesController, getAvatarController, postComment } from './controllers/comment';
+import { getComments, getRepliesController, getAvatarController, postComment, getCommentContext } from './controllers/comment';
 import { getAdminComments, batchDeleteComments, deleteComment } from './controllers/admin';
 
 // Middleware
@@ -56,6 +56,7 @@ app.post('/api/auth/verify', verifyCode);
 // Comment Routes
 app.get('/api/comments', getComments);
 app.get('/api/comments/:id/replies', getRepliesController);
+app.get('/api/comments/:id', getCommentContext);
 app.post('/api/comments', postComment);
 app.get('/api/avatar/:id', getAvatarController);
 

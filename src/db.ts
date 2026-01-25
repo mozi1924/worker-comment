@@ -84,7 +84,7 @@ export async function getRootComments(db: D1Database, siteId: string, page: numb
 }
 
 // Lazy load replies with cursor pagination
-export async function getReplies(db: D1Database, parentId: number, lastId?: number, limit: number = 10) {
+export async function getReplies(db: D1Database, parentId: number, lastId?: number, limit: number = 10, highlightId?: number) {
     let query = `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin
                FROM comments 
                WHERE parent_id = ?`;
@@ -98,16 +98,36 @@ export async function getReplies(db: D1Database, parentId: number, lastId?: numb
     query += ` ORDER BY id DESC LIMIT ?`;
     params.push(limit + 1); 
 
-    const { results } = await db.prepare(query).bind(...params).all<Comment>();
+    const { results } = await db.prepare(query).bind(...params).all<Comment & { is_admin: number }>();
     
     const hasMore = results.length > limit;
     const replies = hasMore ? results.slice(0, limit) : results;
+
+    // If highlightId is provided and not in the list, fetch it and append
+    if (highlightId) {
+        const found = replies.find(r => r.id === highlightId);
+        if (!found) {
+            const highlight = await getCommentById(db, highlightId);
+            // Verify it belongs to this thread
+            if (highlight && highlight.parent_id === parentId) {
+                // We append it to the end. The frontend should handle sorting or scrolling.
+                // Since this list is "newest first", appending it means it's "older" or just "extra".
+                replies.push(highlight as Comment & { is_admin: number });
+            }
+        }
+    }
 
     return {
         replies,
         hasMore,
         lastId: replies.length > 0 ? replies[replies.length - 1].id : null
     };
+}
+
+export async function getCommentById(db: D1Database, id: number): Promise<(Comment & { is_admin: number }) | null> {
+    return await db.prepare(
+        `SELECT id, site_id, parent_id, content, author_name, email_md5, avatar_id, context_url, created_at, is_admin FROM comments WHERE id = ?`
+    ).bind(id).first<Comment & { is_admin: number }>();
 }
 
 export async function getCommentAuthor(db: D1Database, commentId: number): Promise<{ email: string, author_name: string } | null> {

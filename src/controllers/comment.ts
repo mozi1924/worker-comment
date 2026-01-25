@@ -4,7 +4,7 @@ import { errorResponse, jsonResponse, md5, getSiteConfig } from '../utils';
 import { validateTurnstile } from '../lib/turnstile';
 import { processAvatar, getAvatar } from '../lib/avatar';
 import { sendEmail } from '../lib/email';
-import { insertComment, getRootComments, getReplies, getCommentAuthor } from '../db';
+import { insertComment, getRootComments, getReplies, getCommentAuthor, getCommentById } from '../db';
 
 export const getComments = async (c: Context<{ Bindings: Env }>) => {
     const siteId = c.req.query('site_id');
@@ -52,10 +52,36 @@ export const getRepliesController = async (c: Context<{ Bindings: Env }>) => {
     const lastId = c.req.query('last_id') ? parseInt(c.req.query('last_id')!) : undefined;
     const limit = parseInt(c.req.query('limit') || '10');
 
+    const highlightId = c.req.query('highlight_id') ? parseInt(c.req.query('highlight_id')!) : undefined;
+
     if (isNaN(parentId)) return errorResponse('Invalid comment ID');
 
-    const data = await getReplies(c.env.DB, parentId, lastId, limit);
+    const data = await getReplies(c.env.DB, parentId, lastId, limit, highlightId);
     return jsonResponse(data);
+};
+
+export const getCommentContext = async (c: Context<{ Bindings: Env }>) => {
+    const id = parseInt(c.req.param('id'));
+    if (isNaN(id)) return errorResponse('Invalid comment ID');
+
+    const comment = await getCommentById(c.env.DB, id);
+    if (!comment) return errorResponse('Comment not found', 404);
+
+    let rootComment = comment;
+    if (comment.parent_id) {
+         let current = comment;
+         while (current.parent_id) {
+             const parent = await getCommentById(c.env.DB, current.parent_id);
+             if (!parent) break;
+             current = parent;
+         }
+         rootComment = current;
+    }
+
+    return jsonResponse({
+        comment,
+        root_comment: rootComment
+    });
 };
 
 export const getAvatarController = async (c: Context<{ Bindings: Env }>) => {
