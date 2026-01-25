@@ -6,7 +6,7 @@ import { corsHeaders } from './utils';
 // Controllers
 import { sendCode, verifyCode } from './controllers/auth';
 import { getComments, getRepliesController, getAvatarController, postComment, getCommentContext } from './controllers/comment';
-import { getAdminComments, batchDeleteComments, deleteComment } from './controllers/admin';
+import { getAdminComments, batchDeleteComments, deleteComment, refreshAvatar } from './controllers/admin';
 
 // Middleware
 import { adminAuth } from './middleware/auth';
@@ -66,11 +66,7 @@ app.use('/api/admin/*', adminAuth);
 app.get('/api/admin/comments', getAdminComments);
 app.delete('/api/admin/comments/batch', batchDeleteComments);
 app.delete('/api/admin/comments/:id', deleteComment);
+app.post('/api/admin/refresh-avatar', refreshAvatar);
 
 // Scheduled Events
-export default {
-    fetch: app.fetch,
-    async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-        console.log('Cron triggered: performing cleanup');
-    },
-};
+export default app;

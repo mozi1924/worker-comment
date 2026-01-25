@@ -1,13 +1,13 @@
 import { md5 } from '../utils';
 
-export async function processAvatar(KV: KVNamespace, email: string) {
+export async function processAvatar(KV: KVNamespace, email: string, force: boolean = false) {
     const emailMd5 = await md5(email.trim().toLowerCase());
     const avatarId = emailMd5;
 
     // Background processing
     try {
         const existing = await KV.get(avatarId);
-        if (!existing) {
+        if (!existing || force) {
             let avatarBuffer: ArrayBuffer | null = null;
             const qtMatch = email.match(/^(\d+)@qq\.com$/);
             if (qtMatch) {
@@ -22,6 +22,7 @@ export async function processAvatar(KV: KVNamespace, email: string) {
                 await KV.put(avatarId, avatarBuffer, { expirationTtl: 60 * 60 * 24 * 7 });
             }
         }
+
     } catch (e) {
         console.error('Avatar processing error:', e);
     }

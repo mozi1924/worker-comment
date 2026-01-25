@@ -1,14 +1,15 @@
 import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Trash2, ExternalLink, Globe, Calendar } from 'lucide-react';
+import { Trash2, ExternalLink, Globe, Calendar, RefreshCw } from 'lucide-react';
 import type { Comment } from '../types';
 
 interface CommentCardProps {
     comment: Comment;
     onDelete: (id: number) => void;
+    onRefreshAvatar: (email: string, siteId: string) => void;
 }
 
-export const CommentCard: React.FC<CommentCardProps> = ({ comment, onDelete }) => {
+export const CommentCard: React.FC<CommentCardProps> = ({ comment, onDelete, onRefreshAvatar }) => {
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
             <div className="flex justify-between items-start mb-4">
@@ -19,7 +20,8 @@ export const CommentCard: React.FC<CommentCardProps> = ({ comment, onDelete }) =
                     <div>
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                              {comment.author_name}
-                             {comment.email_md5 && <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-mono hidden sm:inline-block">MD5: {comment.email_md5.substring(0,6)}...</span>}
+                             {comment.email && <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full hidden sm:inline-block">{comment.email}</span>}
+                             {!comment.email && comment.email_md5 && <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-mono hidden sm:inline-block">MD5: {comment.email_md5.substring(0,6)}...</span>}
                         </h3>
                         <div className="flex items-center text-xs text-gray-500 space-x-3 mt-1">
                              <span className="flex items-center" title="Site ID">
@@ -45,6 +47,15 @@ export const CommentCard: React.FC<CommentCardProps> = ({ comment, onDelete }) =
                 >
                     <Trash2 className="w-5 h-5" />
                 </button>
+                    {comment.email && (
+                    <button
+                        onClick={() => onRefreshAvatar(comment.email!, comment.site_id)}
+                        className="text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-blue-50 ml-1"
+                        title="Refresh Avatar"
+                    >
+                        <RefreshCw className="w-4 h-4" />
+                    </button>
+                    )}
             </div>
 
             <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap ml-0 sm:ml-13 pl-0 sm:pl-3 border-l-2 border-gray-100 sm:border-l-2">

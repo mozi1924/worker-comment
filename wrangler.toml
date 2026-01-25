@@ -23,10 +23,6 @@ preview_id = "AVATAR_KV"
 [placement]
 mode = "smart"
 
-# Cron Triggers (Cleanup)
-[triggers]
-crons = ["0 0 * * *"] # Run once a day at midnight
-
 [observability]
 [observability.logs]
 enabled = true

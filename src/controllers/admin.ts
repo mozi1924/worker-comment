@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 import { Env } from '../types';
 import { errorResponse, jsonResponse, md5 } from '../utils';
+import { processAvatar } from '../lib/avatar';
 
 export const getAdminComments = async (c: Context<{ Bindings: Env }>) => {
     const email = c.req.query('email');
@@ -84,5 +85,20 @@ export const deleteComment = async (c: Context<{ Bindings: Env }>) => {
         c.executionCtx.waitUntil(c.env.AVATAR_KV.put(`cache:site:${comment.site_id}`, nowStr));
     }
     
+    return jsonResponse({ success: true });
+};
+
+
+export const refreshAvatar = async (c: Context<{ Bindings: Env }>) => {
+    const body = await c.req.json<{ email: string, site_id?: string }>();
+    if (!body.email) return errorResponse('Missing email');
+
+    await processAvatar(c.env.AVATAR_KV, body.email, true);
+
+    if (body.site_id) {
+        const nowStr = new Date().toUTCString();
+        c.executionCtx.waitUntil(c.env.AVATAR_KV.put(`cache:site:${body.site_id}`, nowStr));
+    }
+
     return jsonResponse({ success: true });
 };

@@ -3,6 +3,7 @@ export interface Comment {
     site_id: string;
     content: string;
     author_name: string;
+    email?: string;
     email_md5: string;
     created_at: number;
     context_url?: string;

@@ -68,6 +68,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ workerUrl, token, onLogout
             setMessage({ type: 'error', text: 'Error deleting comment' });
         }
     };
+    
+    const handleRefreshAvatar = async (email: string, siteId: string) => {
+        try {
+            const res = await fetch(`${workerUrl}/api/admin/refresh-avatar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ email, site_id: siteId })
+            });
+            if (res.ok) {
+                setMessage({ type: 'success', text: 'Avatar refreshed. You may need to clear cache.' });
+                setTimeout(() => setMessage(null), 4000);
+            } else {
+                setMessage({ type: 'error', text: 'Failed to refresh avatar' });
+            }
+        } catch (e) {
+            setMessage({ type: 'error', text: 'Error refreshing avatar' });
+        }
+    };
 
     const handleBatchDelete = async () => {
         if (!emailFilter) return;
@@ -212,7 +233,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ workerUrl, token, onLogout
                         {comments.length > 0 ? (
                             <div className="grid grid-cols-1 gap-4">
                                 {comments.map(comment => (
-                                    <CommentCard key={comment.id} comment={comment} onDelete={handleDelete} />
+                                    <CommentCard 
+                                        key={comment.id} 
+                                        comment={comment} 
+                                        onDelete={handleDelete}
+                                        onRefreshAvatar={handleRefreshAvatar}
+                                    />
                                 ))}
                             </div>
                         ) : (
