@@ -5,7 +5,6 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ALLOW_SITES = "mozi1924.com,jaxlocke.uk,arasaka.ltd,comment-admin.arasaka.ltd"
-SENDER_EMAIL = {"mozi1924.com" = "noreply@mozi1924.com","default" = "noreply@tlilng.top"}
 
 # D1 Database Binding
 [[d1_databases]]
@@ -27,12 +26,6 @@ mode = "smart"
 # Cron Triggers (Cleanup)
 [triggers]
 crons = ["0 0 * * *"] # Run once a day at midnight
-
-# Cloudflare Email Routing (we'll use the send_email binding if available or assume MailChannels fallback, 
-# but per prompt "Use Cloudflare Email Routing", we'll add the send_email binding)
-# Note: 'send_email' binding requires specific setup in dashboard.
-[[send_email]]
-name = "SEB"
 
 [observability]
 [observability.logs]

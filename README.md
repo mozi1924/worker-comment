@@ -8,9 +8,9 @@ A serverless comment backend built with Cloudflare Workers, Hono, D1 (Database),
 - **Avatar Caching**: Caches Gravatar/QQ avatars in KV to reduce external requests.
 - **Spam Protection**: Turnstile integration.
 - **Email Notifications**:
-  - Supports sending emails via Cloudflare Email Routing (or other bindings).
+  - Sends emails via an external REST API (e.g., Vercel-based mailer gateway).
   - Smart routing: Replies notify the parent author; new threads notify the admin.
-  - **Multi-site Support**: Configure different sender and admin emails for different websites using the same worker.
+  - **Multi-site Support**: Configure different admin notification emails for different websites using the same worker.
 - **Admin API**: View and delete comments.
 
 ## Deployment
@@ -22,7 +22,7 @@ A serverless comment backend built with Cloudflare Workers, Hono, D1 (Database),
     ```bash
     npm install -g wrangler
     ```
-3.  **Domain**: A domain on Cloudflare (for Email Routing and custom worker domain).
+3.  **External Mailer API**: An external REST API to handle email sending (e.g., [vercel-email-routing](https://github.com/mozi1924/vercel-email-routing)).
 
 ### Setup Steps
 
@@ -35,7 +35,6 @@ A serverless comment backend built with Cloudflare Workers, Hono, D1 (Database),
     ```
 
 2.  **Create Resources**
-
     - **D1 Database**:
 
       ```bash
@@ -66,55 +65,27 @@ A serverless comment backend built with Cloudflare Workers, Hono, D1 (Database),
     # Turnstile Secret Key
     wrangler secret put TURNSTILE_SECRET
 
-    # Sender Email (see "Multi-site Configuration" below)
-    wrangler secret put SENDER_EMAIL
+    # External Mailer API URL
+    wrangler secret put EMAIL_API_URL
+
+    # External Mailer API Key
+    wrangler secret put EMAIL_API_KEY
 
     # Admin Email (Comma-separated list of allowed admin emails)
     # REQUIRED: Only emails in this list can log in.
     wrangler secret put ADMIN_EMAIL
     ```
 
-5.  **Email Routing Setup**
-
-    - Go to user dashboard > Email > Email Routing.
-    - Enable it for your domain.
-    - Create a "Catch-all" rule or specific addresses if needed.
-    - **IMPORTANT**: For the Worker to _send_ emails, you must configure the "Send Email" binding.
-      - In your Worker's Settings > Variables, ensure you add the `send_email` binding linking to your destination (or use Wrangler, but bindings usually need dashboard setup if not using MailChannels).
-      - _Note_: The code expects a `send_email` binding named `SEB`.
-
-6.  **Deploy**
+5.  **Deploy**
     ```bash
     wrangler deploy
     ```
 
 ## Multi-site Configuration
 
-You can use a single Worker instance for multiple websites (`site_id`). You can configure different Sender Names/Emails and different Admin notification emails for each site.
+You can use a single Worker instance for multiple websites (`site_id`). You can configure different Admin notification emails for each site.
 
-### 1. Sender Email (`SENDER_EMAIL`)
-
-This variable determines who the email appears to be _from_.
-
-**Option A: Single Sender (Simple)**
-Just set the secret to a plain string:
-
-```text
-noreply@yourdomain.com
-```
-
-**Option B: Multi-site (JSON)**
-Set the secret to a JSON string mapping `site_id` to email addresses.
-
-```json
-{
-  "siteA": "noreply@siteA.com",
-  "siteB": "contact@siteB.com",
-  "default": "noreply@default.com"
-}
-```
-
-### 2. Admin Email (`ADMIN_EMAIL`)
+### Admin Email (`ADMIN_EMAIL`)
 
 This variable determines who receives notifications for _new threads_ (or fallbacks when a parent author has no email).
 

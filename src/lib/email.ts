@@ -1,7 +1,4 @@
-import { createMimeMessage } from 'mimetext';
-import { EmailMessage } from "cloudflare:email";
 import { Env } from '../types';
-import { getSiteConfig } from '../utils';
 
 export async function sendEmail(
     env: Env, 
@@ -13,24 +10,39 @@ export async function sendEmail(
     siteId?: string,
     extraHeaders: Record<string, string> = {}
 ) {
-    const sender = getSiteConfig(env.SENDER_EMAIL, siteId, 'noreply@yourdomain.com');
+    if (!env.EMAIL_API_URL || !env.EMAIL_API_KEY) {
+        console.error('[Email] API Configuration Missing: EMAIL_API_URL or EMAIL_API_KEY not set.');
+        return false;
+    }
 
     try {
-        const msg = createMimeMessage();
-        msg.setSender({ name: senderName, addr: sender });
-        msg.setRecipient(to);
-        msg.setSubject(subject);
+        console.log(`[Email] Sending to ${to} via External API...`);
         
-        Object.entries(extraHeaders).forEach(([key, value]) => {
-            msg.setHeader(key, value);
+        const payload = {
+            to: to,
+            subject: subject,
+            html: htmlContent,
+            text: plainContent,
+            headers: extraHeaders
+        };
+
+        const response = await fetch(env.EMAIL_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.EMAIL_API_KEY
+            },
+            body: JSON.stringify(payload)
         });
 
-        msg.addMessage({ contentType: 'text/plain', data: plainContent });
-        msg.addMessage({ contentType: 'text/html', data: htmlContent });
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Email] External API Error: ${response.status} ${response.statusText} - ${errorText}`);
+            return false;
+        }
 
-        const message = new EmailMessage(sender, to, msg.asRaw());
-        await env.SEB.send(message);
-        console.log(`[Email] Successfully sent to ${to}`);
+        const result = await response.json();
+        console.log(`[Email] Successfully sent to ${to}. Response:`, result);
         return true;
     } catch (e) {
         console.error(`[Email] Failed to send to ${to}:`, e);

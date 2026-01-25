@@ -16,6 +16,6 @@
   },
   "dependencies": {
     "hono": "^3.12.11",
-    "mimetext": "^3.0.22"
+
   }
 }

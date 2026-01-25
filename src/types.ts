@@ -1,9 +1,10 @@
 export interface Env {
     DB: D1Database;
     AVATAR_KV: KVNamespace;
-    SEB: any; // Cloudflare Email Binding
+    MAX_REQUESTS_PER_MINUTE?: number;
+    EMAIL_API_URL: string;
+    EMAIL_API_KEY: string;
     TURNSTILE_SECRET?: string;
-    SENDER_EMAIL: string;
     ADMIN_EMAIL: string;
     ADMIN_SECRET?: string;
     [key: string]: any;

@@ -135,7 +135,7 @@ export const postComment = async (c: Context<{ Bindings: Env }>) => {
             console.log(`[Email] Starting background email task for comment ${newId}`);
             try {
                 const env = c.env as Env;
-                if (!env.SEB) return;
+                if (!env.EMAIL_API_URL || !env.EMAIL_API_KEY) return;
 
                 const recipients: { email: string, name: string, type: 'Admin' | 'User' }[] = [];
                 
